@@ -13,4 +13,4 @@ def test_signup(email: str, password: str):
 
 # Firebase automatically validates email string format
 # beware on test cases
-print(test_signup("test.email@gmail.com", "test-pass"))
+print(test_signup("test.email89", "test-pass"))

@@ -7,7 +7,6 @@ def test_login(email: str, password: str):
        "password": password
    }
    response = requests.post(url="http://127.0.0.1:1234/login", json=body)
-   print(response.json())
    return json.loads(response.text)["token"]
 
 valid_token = test_login("test.email@gmail.com", "test-pass")
