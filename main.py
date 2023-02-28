@@ -4,12 +4,16 @@ import pyrebase
 import json
 
 from firebase_admin import credentials, auth
+from firebase_admin.auth import UserRecord
+from firebase_admin._auth_utils import EmailAlreadyExistsError
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import HTTPException
 
-from firebase import firebase_config, firebase_credentials
+from util.firebase import firebase_config, firebase_credentials
+from util.user import create_user_response
 
 cred = credentials.Certificate(json.loads(firebase_credentials))
 firebase = firebase_admin.initialize_app(cred)
@@ -30,46 +34,49 @@ app.add_middleware(
 @app.post("/signup", include_in_schema=False)
 async def signup(request: Request):
     req = await request.json()
-    email = req["email"]
-    password = req["password"]
+    email = req.get("email")
+    password = req.get("password")
 
-    if email is None or password is None:
-        return HTTPException(detail={ "message": "Error! Missing Email or Password" }, status_code=400)
+    if not email or not password:
+        raise HTTPException(detail={ "message": "An email and password are required to sign up for an account." }, status_code=400)
 
     try:
-        user = auth.create_user(
+        user: UserRecord = auth.create_user(
             email=email,
             password=password
         )
-        return JSONResponse(content={"message": f"Successfully created user {user.uid}"}, status_code=200)    
-    except:
-        return HTTPException(detail={"message": "Error Creating User"}, status_code=400)
+        return JSONResponse(content=create_user_response(user), status_code=200)
+    except EmailAlreadyExistsError:
+        raise HTTPException(detail={ "message": "A user already exists with this email address. If you have an account, please sign in. Otherwise, use a different email address." }, status_code=400)
+    except ValueError as value_error:
+        raise HTTPException(detail={ "message": str(value_error) }, status_code=400)
+    except Exception as e:
+        raise HTTPException(detail={ "message": "An unknown error occurred, please try again", "error": str(e) }, status_code=400)
 
 # login endpoint
 @app.post("/login", include_in_schema=False)
 async def login(request: Request):
     req = await request.json()
-    email = req["email"]
-    password = req["password"]
+    email = req.get("email")
+    password = req.get("password")
 
     try:
         user = pb.auth().sign_in_with_email_and_password(email, password)
-        jwt = user["idToken"]
-        return JSONResponse(content={"token": jwt}, status_code=200)
+        idToken = user.get("idToken")
+        return JSONResponse(content={ "idToken": idToken }, status_code=200)
     except:
-        return HTTPException(detail={"message": "Incorrect email or password."}, status_code=400)
+        raise HTTPException(detail={ "message": "Incorrect email or password." }, status_code=400)
 
 # ping endpoint
-@app.post("/ping", include_in_schema=False)
+@app.post("/verify-user", include_in_schema=False)
 async def validate(request: Request):
    # headers is a dictionary of type Headers object
    headers = request.headers
 
-   jwt = headers.get("authorization")
-   print(f"jwt: {jwt}")
+   idToken = headers.get("authorization")
 
-   user = auth.verify_id_token(jwt)
-   return user.get("uid")
+   user = auth.verify_id_token(idToken)
+   return user
 
 if __name__ == "__main__":
-    uvicorn.run("main:app")
+    uvicorn.run("main:app", port=1234, reload=True)
