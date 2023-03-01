@@ -5,7 +5,7 @@ import json
 
 from firebase_admin import credentials, auth
 from firebase_admin.auth import UserRecord
-from firebase_admin._auth_utils import EmailAlreadyExistsError
+from firebase_admin._auth_utils import EmailAlreadyExistsError, UserNotFoundError
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import HTTPException
 
 from util.firebase import firebase_config, firebase_credentials
-from util.user import create_user_response
+from util.user import user_details
 
 cred = credentials.Certificate(json.loads(firebase_credentials))
 firebase = firebase_admin.initialize_app(cred)
@@ -45,7 +45,13 @@ async def signup(request: Request):
             email=email,
             password=password
         )
-        return JSONResponse(content=create_user_response(user), status_code=200)
+        return JSONResponse(
+            content={
+                "message": "Successfully created user.",
+                "user": user_details(user)
+            },
+            status_code=200
+        )
     except EmailAlreadyExistsError:
         raise HTTPException(detail={ "message": "A user already exists with this email address. If you have an account, please sign in. Otherwise, use a different email address." }, status_code=400)
     except ValueError as value_error:
@@ -66,6 +72,22 @@ async def login(request: Request):
         return JSONResponse(content={ "idToken": idToken }, status_code=200)
     except:
         raise HTTPException(detail={ "message": "Incorrect email or password." }, status_code=400)
+
+@app.get("/user", include_in_schema=False)
+async def getUserByEmail(request: Request):
+    req = await request.json()
+    email = req.get("email")
+    
+    if not email:
+        raise HTTPException(detail={ "message": "An email address is required for lookup." }, status_code=400)
+    
+    try:
+        user: UserRecord = auth.get_user_by_email(email)
+        return JSONResponse(content={ "user": user_details(user) }, status_code=200)
+    except UserNotFoundError:
+        raise HTTPException(detail={ "message": "No user exists with this email address." }, status_code=400)
+    except Exception as e:
+        raise HTTPException(detail={ "message": "An unknown error has occurred. Please try again." }, status_code=400) 
 
 # ping endpoint
 @app.post("/verify-user", include_in_schema=False)
