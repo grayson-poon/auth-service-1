@@ -1,6 +1,6 @@
 # user-management-api-1
 
-A Python API to handle login and signup functions for web applications. Built with:
+A Python microservice / API to handle login, signup, and user management functions for applications that require user management features. Built with:
 * [FastAPI](https://fastapi.tiangolo.com/)
 * [Firebase Auth](https://firebase.google.com/docs/auth)
 * Packages and environment managed with [pip](https://pip.pypa.io/en/latest/development/)
